@@ -1,0 +1,2 @@
+com.example.commerce.commons.observation.ObservationErrorMetricsAutoConfiguration
+com.example.commerce.commons.metrics.CommerceMetricsAutoConfiguration

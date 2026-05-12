@@ -1,0 +1,8 @@
+# Activated by @ActiveProfiles("test") on integration tests — no Redis required on localhost.
+spring:
+  cache:
+    type: simple
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration

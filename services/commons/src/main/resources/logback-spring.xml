@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+  <!-- service_name: static per process. traceId / spanId: from MDC (Micrometer tracing listener).
+       OpenTelemetry Java agent also injects trace_id / span_id into MDC — those are excluded below so JSON has one pair.
+       globalCustomFields cannot vary per log line, so we use LoggingEventPatternJsonProvider instead. -->
+  <springProperty scope="context" name="SERVICE_NAME" source="spring.application.name" defaultValue="unknown-service"/>
+
+  <!-- One JSON object per line. Remaining MDC (e.g. orderId) still emitted via <mdc/>. -->
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder class="net.logstash.logback.encoder.LoggingEventCompositeJsonEncoder">
+      <providers>
+        <timestamp/>
+        <provider class="net.logstash.logback.composite.loggingevent.LoggingEventPatternJsonProvider">
+          <pattern>
+            {
+            "service_name":"${SERVICE_NAME}",
+            "traceId":"%mdc{traceId:-}",
+            "spanId":"%mdc{spanId:-}"
+            }
+          </pattern>
+        </provider>
+        <logLevel>
+          <fieldName>level</fieldName>
+        </logLevel>
+        <loggerName>
+          <fieldName>logger</fieldName>
+        </loggerName>
+        <message/>
+        <!-- Exclude trace keys here — camelCase pair already emitted above; snake_case from OTel agent is redundant. -->
+        <mdc>
+          <excludeMdcKeyName>traceId</excludeMdcKeyName>
+          <excludeMdcKeyName>spanId</excludeMdcKeyName>
+          <excludeMdcKeyName>trace_id</excludeMdcKeyName>
+          <excludeMdcKeyName>span_id</excludeMdcKeyName>
+          <excludeMdcKeyName>trace_flags</excludeMdcKeyName>
+        </mdc>
+        <stackTrace>
+          <fieldName>stack_trace</fieldName>
+          <throwableConverter class="net.logstash.logback.stacktrace.ShortenedThrowableConverter">
+            <maxDepthPerThrowable>30</maxDepthPerThrowable>
+          </throwableConverter>
+        </stackTrace>
+      </providers>
+    </encoder>
+  </appender>
+
+  <root level="INFO">
+    <appender-ref ref="CONSOLE"/>
+  </root>
+</configuration>

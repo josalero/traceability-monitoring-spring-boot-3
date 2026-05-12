@@ -1,0 +1,44 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch: {}
+  resourcedetection/docker:
+    detectors: [env, system]
+
+exporters:
+  # Traces -> Jaeger via OTLP gRPC
+  otlp/jaeger:
+    endpoint: jaeger:4317
+    tls:
+      insecure: true
+
+  # Metrics -> Prometheus pulls from this endpoint
+  prometheus:
+    endpoint: 0.0.0.0:9464
+    resource_to_telemetry_conversion:
+      enabled: true
+
+  # SolarWinds path - leave commented until ready to migrate (section 22).
+  # otlp/solarwinds:
+  #   endpoint: ${env:SW_OTEL_ENDPOINT}
+  #   headers:
+  #     authorization: "Bearer ${env:SW_API_TOKEN}"
+
+service:
+  pipelines:
+    traces:
+      receivers:  [otlp]
+      processors: [batch, resourcedetection/docker]
+      exporters:  [otlp/jaeger]
+      # exporters: [otlp/jaeger, otlp/solarwinds]   # hybrid mode (section 22)
+    metrics:
+      receivers:  [otlp]
+      processors: [batch, resourcedetection/docker]
+      exporters:  [prometheus]
+      # exporters: [prometheus, otlp/solarwinds]

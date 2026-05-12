@@ -1,0 +1,91 @@
+# =========================
+# IDEs & Editors
+# =========================
+.idea/
+*.iml
+*.iws
+.vscode/
+.project
+.classpath
+.settings/
+*.sublime-workspace
+*.sublime-project
+.DS_Store
+
+# =========================
+# Maven
+# =========================
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+!/.mvn/wrapper/maven-wrapper.properties
+
+# =========================
+# Java
+# =========================
+*.class
+*.log
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+hs_err_pid*
+
+# =========================
+# Node & Frontend
+# =========================
+node_modules/
+dist/
+build/
+.npm/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.pnpm-store/
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+web-ui/dist-ssr/
+web-ui/*.tsbuildinfo
+
+# =========================
+# Environment & Secrets
+# =========================
+.env
+*.pem
+*.key
+*.p12
+*.pfx
+secrets.yml
+
+# =========================
+# Docker & Infrastructure
+# =========================
+# Don't ignore the docker-compose.yml or Dockerfiles, but ignore data volumes
+pgdata/
+rabbitdata/
+prometheus_data/
+grafana_data/
+loki_data/
+
+# Config Repo state (to avoid committing the config-server's local git clone state to the parent)
+config-repo/.git/
+
+# OTel agent (downloaded via script)
+infra/otel/agent/opentelemetry-javaagent.jar
+
+# Log files created locally
+*.log
+logs/

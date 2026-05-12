@@ -1,0 +1,11 @@
+spring:
+  application:
+    name: notification-service
+  cloud:
+    config:
+      enabled: false
+  config:
+    import: ""
+eureka:
+  client:
+    enabled: false

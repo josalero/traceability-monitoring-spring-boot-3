@@ -1,0 +1,11 @@
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    config:
+      enabled: false
+  config:
+    import: ""
+eureka:
+  client:
+    enabled: false

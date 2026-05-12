@@ -1,0 +1,16 @@
+server:
+  port: 8888
+
+# Bind-mounted config-repo is served from disk without JGit (avoids "remote null" / dirty-tree pulls).
+spring:
+  profiles:
+    active: native
+  application:
+    name: config-server
+  cloud:
+    config:
+      server:
+        native:
+          search-locations: file:///workspace/config-repo
+          # YAML lives at repo root (no config-repo/main/ folder); disable extra .../{label}/ lookups.
+          add-label-locations: false

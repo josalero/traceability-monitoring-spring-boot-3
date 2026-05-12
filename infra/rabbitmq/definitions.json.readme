@@ -1,0 +1,12 @@
+# definitions.json (optional)
+
+This repo previously mounted `definitions.json` into RabbitMQ. That file contained a
+hard-coded password hash for `guest` that did **not** match `guest`/`guest`, which
+caused `ACCESS_REFUSED` / invalid credentials when Spring apps connected.
+
+Topology is created by **Spring Cloud Stream** at runtime, so no broker-side
+definitions import is required for this POC.
+
+If you need pre-declared exchanges/queues later, export definitions from a healthy
+broker and mount them — ensure user passwords match `${RABBITMQ_USER}` /
+`${RABBITMQ_PASSWORD}` or omit `users` from the export.
