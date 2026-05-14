@@ -44,6 +44,10 @@ Once you have placed an order, explore the observability tools:
 - **Prometheus (Metrics)**: `http://localhost:9090`
 - **Grafana (Dashboards & Logs)**: `http://localhost:3000` (admin/admin)
 
+### Dynatrace POC (Spring Boot 3.0.9 fixed)
+
+To validate **OneAgent Java traces (PurePath)**, **host/process monitoring**, and **Micrometer metrics** in **Dynatrace SaaS** without starting the local Jaeger / Grafana / Prometheus / Loki stack, follow **[DYNATRACE-POC.md](DYNATRACE-POC.md)** and run **`docker compose -f docker-compose.dynatrace-poc.yml up -d --build`** (**Linux**). That path keeps **`spring-boot-starter-parent` 3.0.9**, runs **`dynatrace/oneagent`**, **does not** use the OpenTelemetry javaagent, and uses **`config-repo/application-dynatrace.yml`** for metrics (`SPRING_PROFILES_ACTIVE=cloud,dynatrace`). It is separate from the default `docker compose up` observability flow above (add **`--profile commerce-local-observability`** to the Dynatrace compose command if you also want the local OSS stack).
+
 ### Logs (Loki) — trace id, span id, order id
 
 Log lines are **JSON**. Micrometer tracing puts **`traceId`** and **`spanId`** into SLF4J MDC; the Logstash encoder emits them as **top-level** JSON fields alongside `message`, `logger`, and `level`. Commerce sets **`orderId`** in MDC for saga-related handlers once an order id is known.
@@ -80,5 +84,5 @@ docker compose down -v
 ```
 
 ## 6. Known Limitations
-- EOL Spring Boot 3.0.9 used for demonstration only.
+- EOL Spring Boot 3.0.9 used for demonstration only (Dynatrace POC: **OneAgent Java** + Micrometer on **3.0.9**; see [DYNATRACE-POC.md](DYNATRACE-POC.md)).
 - Local OpenTelemetry Collector used instead of SolarWinds. See [ARCHITECTURE.md](ARCHITECTURE.md) §22 for migration instructions.

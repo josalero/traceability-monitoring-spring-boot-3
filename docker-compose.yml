@@ -11,9 +11,9 @@ volumes:
   grafana_data: {}
   loki_data: {}
 
-# JVM services listen on 8080 once Tomcat is up (Eureka registration may lag slightly behind).
+# Wait for Eureka registration, not only Tomcat on 8080 (see config-repo application.yml readiness group).
 x-healthcheck-jvm-8080: &healthcheck-jvm-8080
-  test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+  test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/actuator/health/readiness"]
   interval: 10s
   timeout: 3s
   retries: 15

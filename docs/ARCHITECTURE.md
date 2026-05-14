@@ -1154,7 +1154,9 @@ export default function CheckoutPage() {
 
 - **Spring Boot 3.0.9 is EOL** — no security patches upstream. Upgrade
   path is Boot 3.3.x or 3.4.x; both still target Spring Cloud's modern
-  release trains.
+  release trains. **Dynatrace POC** deliberately stays on **3.0.9**:
+  **Dynatrace OneAgent** (`docker-compose.dynatrace-poc.yml`, Linux) for **Java PurePath traces** and infra, **Micrometer** for metrics via
+  **`config-repo/application-dynatrace.yml`** — see **[DYNATRACE-POC.md](DYNATRACE-POC.md)**.
 - **No authentication** — the gateway is open and Grafana ships with the
   default admin. Add Keycloak/Cognito at the gateway and tighten Grafana
   before exposing anything beyond `localhost`.

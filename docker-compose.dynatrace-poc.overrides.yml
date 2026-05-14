@@ -1,0 +1,136 @@
+# Merged with docker-compose.yml via docker-compose.dynatrace-poc.yml (include path list).
+# OneAgent Java (PurePath) + Micrometer env; no OpenTelemetry javaagent / otel-collector.
+# Local OSS observability (Jaeger, Grafana, Prometheus, Loki, Promtail, otel-collector) is
+# assigned profile `commerce-local-observability` so it does not start with this file
+# (focus on Dynatrace). To include them: add `--profile commerce-local-observability`.
+#
+# Requires Docker Compose v2.24+ (!override / !reset). Linux host required (Dynatrace Docker model).
+# Installer URL must match the CPU of the *deployment root* (see /:/mnt/root): on Apple Silicon,
+# Docker’s Linux VM is AArch64 — use Dynatrace “Linux ARM” / API `arch=arm` in ONEAGENT_INSTALLER_SCRIPT_URL.
+# `arch=x86` is only for x86_64 Linux hosts. Wrong arch → "architecture not supported: <AARCH64>".
+# JVM services do **not** `depends_on` oneagent so the commerce stack (api-gateway, etc.) still runs
+# while OneAgent installs or misbehaves; restart workloads after OneAgent is healthy for best injection.
+
+volumes:
+  oneagent-storage: {}
+
+x-dynatrace-poc-app-env: &dynatrace-poc-app-env
+  SPRING_PROFILES_ACTIVE: "cloud,dynatrace"
+  DT_ENVIRONMENT_ID: ${DT_ENVIRONMENT_ID}
+  DYNATRACE_API_TOKEN: ${DYNATRACE_API_TOKEN}
+
+services:
+  oneagent:
+    image: dynatrace/oneagent:latest
+    restart: on-failure:5
+    privileged: true
+    pid: host
+    network_mode: host
+    read_only: true
+    environment:
+      ONEAGENT_INSTALLER_SCRIPT_URL: ${ONEAGENT_INSTALLER_SCRIPT_URL}
+      ONEAGENT_INSTALLER_DOWNLOAD_TOKEN: ${ONEAGENT_INSTALLER_DOWNLOAD_TOKEN}
+      ONEAGENT_ENABLE_VOLUME_STORAGE: "true"
+    volumes:
+      - /:/mnt/root
+      - oneagent-storage:/mnt/volume_storage_mount
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "test -f /opt/dynatrace/oneagent/agent/lib64/liboneagentproc.so || exit 1",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 20
+      start_period: 180s
+
+  # --- Local OSS stack off for Dynatrace POC (enable with --profile commerce-local-observability) ---
+  otel-collector:
+    profiles: ["commerce-local-observability"]
+  jaeger:
+    profiles: ["commerce-local-observability"]
+  prometheus:
+    profiles: ["commerce-local-observability"]
+  loki:
+    profiles: ["commerce-local-observability"]
+  promtail:
+    profiles: ["commerce-local-observability"]
+  grafana:
+    profiles: ["commerce-local-observability"]
+
+  api-gateway:
+    environment: !override
+      <<: *dynatrace-poc-app-env
+    volumes: !reset []
+    healthcheck:
+      test:
+        ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/actuator/health/readiness"]
+      interval: 10s
+      timeout: 3s
+      retries: 15
+      start_period: 90s
+    depends_on: !override
+      config-server: { condition: service_healthy }
+      discovery-server: { condition: service_started }
+      order-service: { condition: service_healthy }
+      inventory-service: { condition: service_healthy }
+      payment-service: { condition: service_healthy }
+
+  order-service:
+    environment: !override
+      <<: *dynatrace-poc-app-env
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+    volumes: !reset []
+    depends_on: !override
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      config-server: { condition: service_healthy }
+      discovery-server: { condition: service_started }
+
+  inventory-service:
+    environment: !override
+      <<: *dynatrace-poc-app-env
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+    volumes: !reset []
+    depends_on: !override
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      config-server: { condition: service_healthy }
+      discovery-server: { condition: service_started }
+
+  payment-service:
+    environment: !override
+      <<: *dynatrace-poc-app-env
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+    volumes: !reset []
+    depends_on: !override
+      postgres: { condition: service_healthy }
+      rabbitmq: { condition: service_healthy }
+      config-server: { condition: service_healthy }
+      discovery-server: { condition: service_started }
+
+  notification-service:
+    environment: !override
+      <<: *dynatrace-poc-app-env
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+    volumes: !reset []
+    depends_on: !override
+      rabbitmq: { condition: service_healthy }
+      config-server: { condition: service_healthy }
+      discovery-server: { condition: service_started }
+
+  # SPA on :5173 — do not wait for api-gateway / OneAgent (avoids blank port while backends boot).
+  web-ui:
+    depends_on: !reset []
