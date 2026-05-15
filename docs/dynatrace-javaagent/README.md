@@ -1,6 +1,191 @@
-# Dynatrace observability options
+# Dynatrace tracing architecture guide
 
-This repository can be explained through four valid Dynatrace integration patterns. They solve similar problems, but they optimize for different things.
+This folder documents the supported Dynatrace integration choices for the Commerce POC, but the exporter is only one part of the story.
+
+To get useful **distributed traces**, the whole system must cooperate:
+
+1. each JVM service must create and propagate trace context,
+2. the API gateway must preserve the active HTTP trace,
+3. asynchronous broker hops such as RabbitMQ must carry context across message boundaries,
+4. and one of the Dynatrace export patterns must send the resulting spans out of the process.
+
+## Overall architecture
+
+```mermaid
+flowchart LR
+  UI["Browser / client"] -->|"HTTP + traceparent"| GW["API Gateway"]
+  GW -->|"HTTP + traceparent"| ORD["order-service"]
+  ORD -->|"AMQP + trace headers"| MQ["RabbitMQ"]
+  MQ --> INV["inventory-service"]
+  MQ --> PAY["payment-service"]
+  MQ --> NOTIF["notification-service"]
+
+  GW --> DT["Dynatrace"]
+  ORD --> DT
+  INV --> DT
+  PAY --> DT
+  NOTIF --> DT
+```
+
+The final hop into Dynatrace changes by option, but the **application-side tracing requirements** are mostly the same.
+
+## What every service needs for traces
+
+Every participating service should have:
+
+### 1. Spring observability enabled
+
+At minimum, keep:
+
+```xml
+<dependency>
+  <groupId>org.springframework.boot</groupId>
+  <artifactId>spring-boot-starter-actuator</artifactId>
+</dependency>
+
+<dependency>
+  <groupId>io.micrometer</groupId>
+  <artifactId>micrometer-tracing-bridge-otel</artifactId>
+</dependency>
+```
+
+In this repo, those are present on the gateway and the business services.
+
+### 2. A stable service identity
+
+Each JVM should emit its own service name:
+
+```yaml
+OTEL_SERVICE_NAME: "order-service"
+OTEL_RESOURCE_ATTRIBUTES: "service.namespace=commerce,deployment.environment=prod"
+```
+
+That is what makes traces readable in Dynatrace instead of collapsing everything into anonymous processes.
+
+### 3. Sampling configured intentionally
+
+For this POC, tracing is configured to capture everything:
+
+```yaml
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+```
+
+For production, this should be revisited rather than copied blindly.
+
+### 4. Business spans where framework spans are not enough
+
+Framework spans tell you that a request happened. Business spans tell you **what the system was doing**.
+
+This repo uses `@CommerceMetered(...)` around important operations such as:
+
+- `order.place`
+- `inventory.reservation`
+- `payment.charge`
+- notification handlers
+
+That gives the trace a domain shape, not just an HTTP shape.
+
+### 5. Correlated logs
+
+The shared Logback config emits both Micrometer and OpenTelemetry trace identifiers:
+
+```json
+{
+  "traceId": "...",
+  "spanId": "...",
+  "otelTraceId": "...",
+  "otelSpanId": "..."
+}
+```
+
+This is especially useful when the Java agent and Micrometer tracing contexts do not line up perfectly.
+
+## What the API gateway needs
+
+The gateway is the front door of the trace.
+
+### Required behavior
+
+- accept incoming W3C `traceparent` headers when a client sends them,
+- create a new trace when no parent exists,
+- propagate trace context downstream,
+- expose identifiers back to the caller when useful for debugging.
+
+This repo does that with `TracePropagationResponseHeadersFilter`, which returns:
+
+- `X-Trace-Id`
+- `X-Span-Id`
+- `traceparent`
+
+Example behavior:
+
+```java
+headers.set("X-Trace-Id", ctx.traceId());
+headers.set("X-Span-Id", ctx.spanId());
+headers.set("traceparent", toTraceparent(ctx));
+```
+
+That makes it easier to correlate a browser request with the same trace inside Dynatrace.
+
+## What RabbitMQ / message brokers need
+
+HTTP propagation is not enough for this system because the order flow continues through RabbitMQ.
+
+To keep one trace connected across asynchronous hops, the broker path must preserve trace context on messages and restore it on consumption.
+
+### Required pieces in this repo
+
+#### 1. Rabbit / Stream support on the service classpath
+
+Services that publish or consume commerce events use:
+
+```xml
+<dependency>
+  <groupId>org.springframework.cloud</groupId>
+  <artifactId>spring-cloud-starter-stream-rabbit</artifactId>
+</dependency>
+```
+
+#### 2. Observation enabled across Spring Integration channels
+
+```yaml
+spring:
+  integration:
+    management:
+      observation-patterns:
+        - "*"
+```
+
+That setting matters because Spring Cloud Stream routes through Spring Integration channels. Without observation coverage there, trace context can disappear before the AMQP publish happens.
+
+#### 3. Reactor context propagation enabled early
+
+This repo uses `ReactorContextPropagationListener` to call:
+
+```java
+Hooks.enableAutomaticContextPropagation();
+```
+
+That protects trace context across Reactor thread hops used in the Stream / Rabbit flow. Without it, a producer may publish a message without the expected trace context and the consumer can start a new root trace instead of continuing the original one.
+
+### What to validate for RabbitMQ
+
+For the checkout saga, verify that one trace shows:
+
+1. the gateway request,
+2. the order placement work,
+3. the message publish,
+4. the inventory / payment consumers,
+5. the notification consumer.
+
+If you see separate unrelated traces after the broker hop, context propagation is broken even if export to Dynatrace is working.
+
+## Dynatrace integration options
+
+The application-side requirements above are shared. What changes between the options is **how spans leave the process**.
 
 | Option | Best when | Main tradeoff |
 |---|---|---|
