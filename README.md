@@ -16,15 +16,16 @@ For the current system shape and observability path, see [docs/ARCHITECTURE.md](
 
 ## Dynatrace architecture options
 
-There are three valid integration models for this project:
+There are four valid integration models for this project:
 
 | Option | Best for | Tradeoff |
 |---|---|---|
 | [OneAgent](docs/dynatrace-javaagent/oneagent.md) | Lowest app-side effort and the most Dynatrace-native experience | Least portable |
+| [OpenTelemetry Java agent + Dynatrace direct export](docs/dynatrace-javaagent/otel-java-agent-direct-dynatrace.md) | Strong auto-instrumentation with fewer moving parts | **Current implementation** |
 | [OpenTelemetry Java agent + Collector + Dynatrace](docs/dynatrace-javaagent/otel-java-agent-collector-dynatrace.md) | Rich auto-instrumentation plus a vendor-neutral pipeline | More infrastructure to maintain |
 | [Agentless custom SDK + Dynatrace](docs/dynatrace-javaagent/custom-sdk-dynatrace.md) | No runtime agent and maximum code-level control | Most engineering ownership |
 
-For a side-by-side comparison, see [docs/dynatrace/README.md](docs/dynatrace-javaagent/README.md).
+For a side-by-side comparison, see [docs/dynatrace-javaagent/README.md](docs/dynatrace-javaagent/README.md).
 
 ## Prerequisites
 
