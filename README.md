@@ -14,9 +14,9 @@ For the current system shape and observability path, see [docs/ARCHITECTURE.md](
 
 **Flows and edge cases** (happy paths, inventory/payment failures, cache behavior, idempotency, POC payment randomness): [docs/scenarios-and-edge-cases.md](docs/scenarios-and-edge-cases.md).
 
-## Dynatrace architecture options
+## Ways to get traces into Dynatrace
 
-There are four valid integration models for this project:
+The goal is the same in all four cases: **produce distributed traces for this system and send them to Dynatrace**. The difference is how you achieve it:
 
 | Option | Best for | Tradeoff |
 |---|---|---|

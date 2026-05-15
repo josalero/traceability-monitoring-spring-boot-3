@@ -1,8 +1,14 @@
-# Dynatrace tracing architecture guide
+# Getting distributed traces into Dynatrace
 
-This folder documents the supported Dynatrace integration choices for the Commerce POC, but the exporter is only one part of the story.
+## Goal
 
-To get useful **distributed traces**, the whole system must cooperate:
+The goal of this document set is simple:
+
+> **Send useful end-to-end distributed traces from the Commerce POC into Dynatrace.**
+
+There are several valid ways to achieve that goal. This README explains the shared tracing architecture the application needs regardless of option, then compares the different implementation paths into Dynatrace.
+
+The exporter choice is only one part of the story. To get useful **distributed traces in Dynatrace**, the whole system must cooperate:
 
 1. each JVM service must create and propagate trace context,
 2. the API gateway must preserve the active HTTP trace,
@@ -183,9 +189,9 @@ For the checkout saga, verify that one trace shows:
 
 If you see separate unrelated traces after the broker hop, context propagation is broken even if export to Dynatrace is working.
 
-## Dynatrace integration options
+## Ways to achieve the goal in Dynatrace
 
-The application-side requirements above are shared. What changes between the options is **how spans leave the process**.
+The application-side requirements above are shared. What changes between the options is **how the same end-to-end traces are delivered into Dynatrace**.
 
 | Option | Best when | Main tradeoff |
 |---|---|---|
@@ -231,6 +237,6 @@ The application-side requirements above are shared. What changes between the opt
 
 ## Recommendation for this repository
 
-For **minimum friction with OpenTelemetry**, use **OpenTelemetry Java agent direct export** — that is the path currently implemented in this repository.
+If the only question is **“how do we get traces into Dynatrace with the least friction?”**, use **OpenTelemetry Java agent direct export** — that is the path currently implemented in this repository.
 
-Use **OneAgent** when Dynatrace-native depth matters more than portability. Use **OpenTelemetry Java agent + Collector** when you need centralized processing or future backend flexibility. Use the **custom SDK** path only after deciding exactly which spans must exist for the business flow and validating that the agentless path preserves them.
+Use **OneAgent** when you want the most Dynatrace-native route to the same goal. Use **OpenTelemetry Java agent + Collector** when you still want traces in Dynatrace but also need centralized processing or future backend flexibility. Use the **custom SDK** path only when avoiding runtime agents is itself a requirement and you are willing to own the trace coverage explicitly.
