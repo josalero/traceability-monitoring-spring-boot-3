@@ -1,8 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
 
-  <!-- service_name: static per process. traceId / spanId: from MDC (Micrometer tracing listener).
-       OpenTelemetry Java agent also injects trace_id / span_id into MDC — those are excluded below so JSON has one pair.
+  <!-- service_name: static per process.
+       traceId / spanId: Micrometer MDC (Spring Observation + micrometer-tracing-bridge-otel).
+       otelTraceId / otelSpanId: OpenTelemetry Java agent MDC (snake_case) — use these to correlate with
+       Dynatrace OTLP traces when Micrometer and the agent disagree (common with agent + bridge-otel).
+       OpenTelemetry keys are excluded from the <mdc/> provider below to avoid duplicate fields there.
        globalCustomFields cannot vary per log line, so we use LoggingEventPatternJsonProvider instead. -->
   <springProperty scope="context" name="SERVICE_NAME" source="spring.application.name" defaultValue="unknown-service"/>
 
@@ -16,7 +19,9 @@
             {
             "service_name":"${SERVICE_NAME}",
             "traceId":"%mdc{traceId:-}",
-            "spanId":"%mdc{spanId:-}"
+            "spanId":"%mdc{spanId:-}",
+            "otelTraceId":"%mdc{trace_id:-}",
+            "otelSpanId":"%mdc{span_id:-}"
             }
           </pattern>
         </provider>

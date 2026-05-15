@@ -2,6 +2,14 @@
 
 This project is a Proof of Concept (POC) demonstrating a microservices architecture built with **Spring Boot 3.0.9**, featuring a fully functional distributed tracing, metrics, and centralized logging observability stack.
 
+| Stack item | Version / pin | Source |
+|------------|-----------------|--------|
+| Spring Boot | 3.0.9 | Root `pom.xml` (`spring-boot-starter-parent`) |
+| Java | 17 | Root `pom.xml` (`java.version`) |
+| Spring Cloud | 2022.0.5 | Root `pom.xml` (`spring-cloud.version`) |
+| OpenTelemetry Java agent | 2.1.0 | `infra/otel/install-agent.sh` (`OTEL_VERSION`) |
+| Dynatrace (OTLP + Micrometer) | See guide | [docs/DYNATRACE-POC.md](docs/DYNATRACE-POC.md) |
+
 For a deep dive into the architecture, component interactions, observability setup, and the migration path to SolarWinds & Papertrail, please see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
 
 **Flows and edge cases** (happy paths, inventory/payment failures, cache behavior, idempotency, POC payment randomness): [docs/scenarios-and-edge-cases.md](docs/scenarios-and-edge-cases.md).

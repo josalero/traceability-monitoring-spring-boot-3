@@ -31,16 +31,22 @@ class TracePropagationResponseHeadersFilter implements GlobalFilter, Ordered {
 
   @Override
   public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-    exchange.getResponse().beforeCommit(() -> Mono.fromRunnable(() -> {
-      TraceContext ctx = tracer.currentTraceContext().context();
-      if (ctx == null) {
-        return;
-      }
-      HttpHeaders headers = exchange.getResponse().getHeaders();
-      headers.set(HEADER_TRACE_ID, ctx.traceId());
-      headers.set(HEADER_SPAN_ID, ctx.spanId());
-      headers.set("traceparent", toTraceparent(ctx));
-    }));
+    // Capture while the request is still scoped to the server span; beforeCommit runs after
+    // the reactive chain may have cleared ThreadLocal / Reactor trace context.
+    TraceContext ctx = tracer.currentTraceContext().context();
+    if (ctx != null) {
+      exchange
+          .getResponse()
+          .beforeCommit(
+              () ->
+                  Mono.fromRunnable(
+                      () -> {
+                        HttpHeaders headers = exchange.getResponse().getHeaders();
+                        headers.set(HEADER_TRACE_ID, ctx.traceId());
+                        headers.set(HEADER_SPAN_ID, ctx.spanId());
+                        headers.set("traceparent", toTraceparent(ctx));
+                      }));
+    }
     return chain.filter(exchange);
   }
 

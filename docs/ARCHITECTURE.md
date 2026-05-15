@@ -4,7 +4,8 @@
 > `~/.cursor/plans/springboot309_microservices_poc_*.plan.md`.
 >
 > **Scope:** local Docker Compose POC. Spring Boot **3.0.9** (hard pin, EOL),
-> Java **17**, Spring Cloud **2022.0.5**, RabbitMQ, Spring Cloud Config,
+> Java **17**, Spring Cloud **2022.0.5**, OpenTelemetry Java agent **v2.1.0**
+> (pinned in `infra/otel/install-agent.sh`), RabbitMQ, Spring Cloud Config,
 > Eureka, Spring Cloud Gateway, React UI.
 >
 > **Observability — 100% local OSS (Path B).** Apps emit telemetry via the
@@ -1154,9 +1155,9 @@ export default function CheckoutPage() {
 
 - **Spring Boot 3.0.9 is EOL** — no security patches upstream. Upgrade
   path is Boot 3.3.x or 3.4.x; both still target Spring Cloud's modern
-  release trains. **Dynatrace POC** deliberately stays on **3.0.9**:
-  **Dynatrace OneAgent** (`docker-compose.dynatrace-poc.yml`, Linux) for **Java PurePath traces** and infra, **Micrometer** for metrics via
-  **`config-repo/application-dynatrace.yml`** — see **[DYNATRACE-POC.md](DYNATRACE-POC.md)**.
+  release trains.   **Dynatrace POC** deliberately stays on **3.0.9**:
+  **OpenTelemetry Java agent → Dynatrace OTLP** for traces, **Micrometer** for metrics via
+  **`config-repo/application-dynatrace.yml`** — see **[DYNATRACE-POC.md](DYNATRACE-POC.md)** (`docker-compose.dynatrace-poc.yml`).
 - **No authentication** — the gateway is open and Grafana ships with the
   default admin. Add Keycloak/Cognito at the gateway and tighten Grafana
   before exposing anything beyond `localhost`.

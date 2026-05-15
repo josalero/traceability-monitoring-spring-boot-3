@@ -1,8 +1,9 @@
-# Dynatrace POC — single entrypoint for the stack + OneAgent overrides.
+# Dynatrace POC — single entrypoint for the stack + OTLP / Micrometer overrides.
 # Merges docker-compose.yml with docker-compose.dynatrace-poc.overrides.yml (see Docker
 # Compose "include" with a path list). Jaeger / Grafana / Prometheus / Loki / Promtail /
-# otel-collector are **not** started (profile `commerce-local-observability`); use Dynatrace
-# for traces and metrics. Run:
+# otel-collector are **not** started (profile `commerce-local-observability`). Traces go to
+# Dynatrace via **OTLP** (OpenTelemetry Java agent in overrides); **Micrometer** pushes metrics.
+# Run:
 #
 #   docker compose -f docker-compose.dynatrace-poc.yml up -d --build
 #
