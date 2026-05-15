@@ -14,9 +14,9 @@ For the current system shape and observability path, see [docs/ARCHITECTURE.md](
 
 **Flows and edge cases** (happy paths, inventory/payment failures, cache behavior, idempotency, POC payment randomness): [docs/scenarios-and-edge-cases.md](docs/scenarios-and-edge-cases.md).
 
-## Ways to get traces into Dynatrace
+## Ways to get traces and metrics into Dynatrace
 
-The goal is the same in all four cases: **produce distributed traces for this system and send them to Dynatrace**. The difference is how you achieve it:
+The goal is the same in all four cases: **send distributed traces and application metrics for this system into Dynatrace**. Metrics use Spring Boot + Micrometer with `micrometer-registry-dynatrace`; the options below mainly differ in how traces are produced and exported:
 
 | Option | Best for | Tradeoff |
 |---|---|---|
@@ -66,7 +66,7 @@ Before starting the project, ensure you have the following installed:
 This repository now maintains a **Dynatrace-only** observability path:
 
 - **Traces:** OpenTelemetry Java agent → Dynatrace OTLP
-- **Metrics:** Micrometer → Dynatrace Metrics API
+- **Metrics:** Spring Boot + `micrometer-registry-dynatrace` → Dynatrace Metrics API
 - **Logs:** application JSON logs remain on stdout for container/runtime collection
 
 See [docs/DYNATRACE-POC.md](docs/DYNATRACE-POC.md) for the required environment variables, tokens, and validation steps.

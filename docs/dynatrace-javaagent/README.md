@@ -1,12 +1,12 @@
-# Getting distributed traces into Dynatrace
+# Getting traces and metrics into Dynatrace
 
 ## Goal
 
 The goal of this document set is simple:
 
-> **Send useful end-to-end distributed traces from the Commerce POC into Dynatrace.**
+> **Send useful end-to-end distributed traces and application metrics from the Commerce POC into Dynatrace.**
 
-There are several valid ways to achieve that goal. This README explains the shared tracing architecture the application needs regardless of option, then compares the different implementation paths into Dynatrace.
+There are several valid ways to achieve that goal. This README explains the shared application requirements for both **traces** and **metrics**, then compares the different implementation paths into Dynatrace.
 
 The exporter choice is only one part of the story. To get useful **distributed traces in Dynatrace**, the whole system must cooperate:
 
@@ -35,9 +35,9 @@ flowchart LR
 
 The final hop into Dynatrace changes by option, but the **application-side tracing requirements** are mostly the same.
 
-## What every service needs for traces
+## What every service needs
 
-Every participating service should have:
+Every participating service should have the following baseline for traces and metrics:
 
 ### 1. Spring observability enabled
 
@@ -57,7 +57,37 @@ At minimum, keep:
 
 In this repo, those are present on the gateway and the business services.
 
-### 2. A stable service identity
+### 2. Dynatrace metrics registry
+
+For metrics, each service that should publish to Dynatrace needs the Spring Boot / Micrometer Dynatrace registry:
+
+```xml
+<dependency>
+  <groupId>io.micrometer</groupId>
+  <artifactId>micrometer-registry-dynatrace</artifactId>
+  <scope>runtime</scope>
+</dependency>
+```
+
+And the shared Dynatrace metrics configuration:
+
+```yaml
+management:
+  dynatrace:
+    metrics:
+      export:
+        enabled: true
+        uri: "https://${DT_ENVIRONMENT_ID}.live.dynatrace.com/api/v2/metrics/ingest"
+        api-token: "${DYNATRACE_API_TOKEN}"
+        step: 30s
+        v2:
+          metric-key-prefix: "commerce.poc"
+          enrich-with-dynatrace-metadata: true
+```
+
+That is the path used in this repo for JVM and application metrics.
+
+### 3. A stable service identity
 
 Each JVM should emit its own service name:
 
@@ -68,7 +98,7 @@ OTEL_RESOURCE_ATTRIBUTES: "service.namespace=commerce,deployment.environment=pro
 
 That is what makes traces readable in Dynatrace instead of collapsing everything into anonymous processes.
 
-### 3. Sampling configured intentionally
+### 4. Sampling configured intentionally
 
 For this POC, tracing is configured to capture everything:
 
@@ -81,7 +111,7 @@ management:
 
 For production, this should be revisited rather than copied blindly.
 
-### 4. Business spans where framework spans are not enough
+### 5. Business spans where framework spans are not enough
 
 Framework spans tell you that a request happened. Business spans tell you **what the system was doing**.
 
@@ -94,7 +124,7 @@ This repo uses `@CommerceMetered(...)` around important operations such as:
 
 That gives the trace a domain shape, not just an HTTP shape.
 
-### 5. Correlated logs
+### 6. Correlated logs
 
 The shared Logback config emits both Micrometer and OpenTelemetry trace identifiers:
 
@@ -191,7 +221,7 @@ If you see separate unrelated traces after the broker hop, context propagation i
 
 ## Ways to achieve the goal in Dynatrace
 
-The application-side requirements above are shared. What changes between the options is **how the same end-to-end traces are delivered into Dynatrace**.
+The application-side requirements above are shared. Across all options, **metrics** use Spring Boot + Micrometer via `micrometer-registry-dynatrace`; what changes between the options is **how the same end-to-end traces are delivered into Dynatrace**.
 
 | Option | Best when | Main tradeoff |
 |---|---|---|
@@ -237,6 +267,6 @@ The application-side requirements above are shared. What changes between the opt
 
 ## Recommendation for this repository
 
-If the only question is **“how do we get traces into Dynatrace with the least friction?”**, use **OpenTelemetry Java agent direct export** — that is the path currently implemented in this repository.
+If the only question is **“how do we get traces and metrics into Dynatrace with the least friction?”**, use **OpenTelemetry Java agent direct export for traces** plus **`micrometer-registry-dynatrace` for metrics** — that is the path currently implemented in this repository.
 
 Use **OneAgent** when you want the most Dynatrace-native route to the same goal. Use **OpenTelemetry Java agent + Collector** when you still want traces in Dynatrace but also need centralized processing or future backend flexibility. Use the **custom SDK** path only when avoiding runtime agents is itself a requirement and you are willing to own the trace coverage explicitly.
