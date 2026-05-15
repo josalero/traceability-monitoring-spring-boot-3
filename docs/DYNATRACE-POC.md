@@ -1,17 +1,17 @@
-# Dynatrace POC guide (Spring Boot 3.0.9 — OTLP traces, Micrometer metrics, Docker Compose)
+# Dynatrace direct export guide (Spring Boot 3.0.9 — OTLP traces, Micrometer metrics, Docker Compose)
 
-This document describes a **Dynatrace-only validation** path for **traceability-monitoring-spring-boot-3** while keeping **`spring-boot-starter-parent` 3.0.9** (same pin as the rest of the repo — **no Spring Boot upgrade** for this POC).
+This document describes the repository’s **direct-to-Dynatrace** path for **traceability-monitoring-spring-boot-3** while keeping **`spring-boot-starter-parent` 3.0.9** (same pin as the rest of the repo — **no Spring Boot upgrade** for this mode).
 
 **Repository versions** (authoritative: root `pom.xml`, `infra/otel/install-agent.sh`): Spring Boot **3.0.9**, Java **17**, Spring Cloud BOM **2022.0.5**, parent artifact **commerce-poc-parent 0.1.0-SNAPSHOT**, OpenTelemetry Java agent **v2.1.0** (the version downloaded by the install script unless you change it).
 
-**Primary approach (this plan):**
+**Recommended direct-export approach:**
 
-| Layer | Role in this POC |
+| Layer | Role in this mode |
 |--------|------------------|
-| **OpenTelemetry Java agent** | **Distributed traces** exported over **OTLP HTTP/protobuf** to Dynatrace (`/api/v2/otlp`). Wired in **`docker-compose.dynatrace-poc.overrides.yml`** (**§4.3**, **§6**). **`OTEL_METRICS_EXPORTER=none`** so **metrics** are not double-sent; use **Micrometer** only. |
+| **OpenTelemetry Java agent** | **Distributed traces** exported over **OTLP HTTP/protobuf** to Dynatrace (`/api/v2/otlp`). Wired in **`docker-compose.yml`** (**§4.3**, **§6**). **`OTEL_METRICS_EXPORTER=none`** so **metrics** are not double-sent; use **Micrometer** only. |
 | **Application metrics** | **`micrometer-registry-dynatrace`** + **`management.dynatrace.metrics.export.*`** in **`config-repo/application-dynatrace.yml`** (**§5.2**). Token scope **`metrics.ingest`** (**§2.1**). |
 
-### Planned stack (OTLP traces + Micrometer metrics)
+### Direct-export stack (OTLP traces + Micrometer metrics)
 
 ```mermaid
 flowchart LR
@@ -29,13 +29,13 @@ flowchart LR
 
 **Security:** never commit real tokens. Use a **gitignored** `.env` file and placeholders in **`.env.example`**.
 
-### Running the Dynatrace POC
+### Running Dynatrace direct export
 
 1. **Docker** — Install [Docker Desktop](https://www.docker.com/products/docker-desktop/) or Docker Engine; ensure the daemon is running.
 2. **`.env` at repo root** — `DT_ENVIRONMENT_ID`, `DYNATRACE_API_TOKEN`, `DT_OTLP_ENDPOINT`, `DT_OTLP_TRACE_TOKEN` (see **§3**).
 3. **Agent JAR** — run **`./infra/otel/install-agent.sh`** so **`./infra/otel/agent/opentelemetry-javaagent.jar`** exists (same bind mount as **`docker compose up`**).
 4. **Start the stack:**  
-   `docker compose -f docker-compose.dynatrace-poc.yml up -d --build`
+   `docker compose up -d --build`
 5. **Expectations:** **Micrometer → Dynatrace** is usually the easiest to validate. **OTLP traces** need a valid **`openTelemetryTrace.ingest`** token and reachable **`DT_OTLP_ENDPOINT`**.
 
 ---
@@ -106,9 +106,9 @@ Optional:
 
 Versions come from the **Spring Boot 3.0.9 BOM**; do not invent versions.
 
-### 4.1 How traces reach Dynatrace in this POC
+### 4.1 How traces reach Dynatrace in this mode
 
-For **`docker compose -f docker-compose.dynatrace-poc.yml`**, each JVM service loads the **OpenTelemetry Java agent** and exports spans with **OTLP HTTP/protobuf** to Dynatrace (**§4.3**). That is the trace pipeline this repository documents for the Dynatrace compose path.
+For **`docker compose up`**, each JVM service loads the **OpenTelemetry Java agent** and exports spans with **OTLP HTTP/protobuf** to Dynatrace (**§4.3**). That is the trace pipeline this repository documents for the Dynatrace compose path.
 
 ### 4.2 RabbitMQ (Spring Cloud Stream) — linking HTTP → message → consumer
 
@@ -124,7 +124,7 @@ The above is what makes **application-level** Micrometer tracing consistent with
 
 ### 4.3 Primary (Option A): **OpenTelemetry Java agent → Dynatrace OTLP** (HTTP/protobuf)
 
-**Spring Boot 3.0.9** does not expose **`management.otlp.tracing`**; this repo sends **traces** with the **OpenTelemetry Java agent** and **`OTEL_*`** environment variables (see **`docker-compose.dynatrace-poc.overrides.yml`**).
+**Spring Boot 3.0.9** does not expose **`management.otlp.tracing`**; this repo sends **traces** with the **OpenTelemetry Java agent** and **`OTEL_*`** environment variables (see **`docker-compose.yml`**).
 
 1. **Install the agent JAR** (once): **`./infra/otel/install-agent.sh`** — produces **`./infra/otel/agent/opentelemetry-javaagent.jar`** (same as the default local Jaeger stack).
 2. **Compose** mounts **`./infra/otel/agent:/opt/otel:ro`** and sets **`JAVA_TOOL_OPTIONS=-javaagent:/opt/otel/opentelemetry-javaagent.jar`** plus:
@@ -145,7 +145,7 @@ The above is what makes **application-level** Micrometer tracing consistent with
 Config Server serves **`file:///workspace/config-repo`**, bind-mounted from **`./config-repo`** (see [`docker-compose.yml`](../docker-compose.yml) and [`services/config-server/src/main/resources/application.yml`](../services/config-server/src/main/resources/application.yml)).
 
 1. Add **`config-repo/application-dynatrace.yml`**.
-2. For Dynatrace POC runs, set on each participating service:
+2. For Dynatrace direct export runs, set on each participating service:
 
    **`SPRING_PROFILES_ACTIVE=cloud,dynatrace`**
 
@@ -153,7 +153,7 @@ Spring Cloud Config merges `application.yml`, **`application-dynatrace.yml`**, a
 
 ### 5.2 `config-repo/application-dynatrace.yml` — **authoritative sample for Boot 3.0.9**
 
-This file configures **metrics + log pattern**. **Distributed traces** for the default Dynatrace POC Compose come from **§4.3** (OpenTelemetry Java agent → OTLP), not from properties in this file.
+This file configures **metrics + log pattern**. **Distributed traces** for the direct-export Dynatrace Compose come from **§4.3** (OpenTelemetry Java agent → OTLP), not from properties in this file.
 
 Property names match [Spring Boot 3.0.9 — Dynatrace (Actuator metrics)](https://docs.spring.io/spring-boot/docs/3.0.9/reference/html/actuator.html#actuator.metrics-export-dynatrace).
 
@@ -191,46 +191,32 @@ Duplicate §5.2 under **`src/main/resources/application-dynatrace.yml`** per ser
 
 ## 6. Docker Compose (Boot 3.0.9 + **OTLP traces**)
 
-The default stack uses **`<<: *otel-env`** (`JAVA_TOOL_OPTIONS` with **OpenTelemetry** javaagent + **`OTEL_*`** → **`otel-collector`**). For the **Dynatrace POC**:
+The root **`docker-compose.yml`** is the only maintained compose file. It starts the application stack with direct Dynatrace export enabled by default:
 
-1. Prefer **`docker compose -f docker-compose.dynatrace-poc.yml ...`** (**§6.0**).
-2. **`docker-compose.dynatrace-poc.overrides.yml`** replaces JVM env with **`<<: [*dynatrace-poc-app-env, *otlp-dynatrace-env]`** and **`OTEL_SERVICE_NAME`** per service; mounts **`./infra/otel/agent:/opt/otel:ro`**; **does not** `depends_on` **`otel-collector`** on **`api-gateway`** (collector is profiled off).
-3. Set **`SPRING_PROFILES_ACTIVE=cloud,dynatrace`**, **`DT_ENVIRONMENT_ID`**, **`DYNATRACE_API_TOKEN`**, **`DT_OTLP_ENDPOINT`**, **`DT_OTLP_TRACE_TOKEN`** in **`.env`**.
-4. Drop **`depends_on: otel-collector`** for JVM services (override handles **`api-gateway`**; other services inherit no collector dependency when merged).
+1. **`x-app-env`** configures Spring + Dynatrace + OTLP trace export.
+2. Each JVM service sets its own **`OTEL_SERVICE_NAME`** and mounts **`./infra/otel/agent:/opt/otel:ro`**.
+3. Set **`DT_ENVIRONMENT_ID`**, **`DYNATRACE_API_TOKEN`**, **`DT_OTLP_ENDPOINT`**, and **`DT_OTLP_TRACE_TOKEN`** in **`.env`** before startup.
 
-### 6.0 Consolidated Compose in this repository (recommended check)
-
-The repo ships a **single-command** Dynatrace POC stack (same services as local dev, with JVMs using **OpenTelemetry javaagent → Dynatrace OTLP** per **§4.3**):
+### 6.0 Compose in this repository
 
 | File | Role |
 |------|------|
-| [`docker-compose.dynatrace-poc.yml`](../docker-compose.dynatrace-poc.yml) | Entry only: `include` with a **path list** that merges [`docker-compose.yml`](../docker-compose.yml) + [`docker-compose.dynatrace-poc.overrides.yml`](../docker-compose.dynatrace-poc.overrides.yml) (see [Compose include with overrides](https://docs.docker.com/compose/how-tos/multiple-compose-files/include/#using-overrides-with-included-compose-files)). |
-| [`docker-compose.dynatrace-poc.overrides.yml`](../docker-compose.dynatrace-poc.overrides.yml) | JVM patches: **`<<: [*dynatrace-poc-app-env, *otlp-dynatrace-env]`**, **`OTEL_SERVICE_NAME`**, **`./infra/otel/agent:/opt/otel:ro`**, **`api-gateway`** TCP **healthcheck**, OSS profile **`commerce-local-observability`**. **Docker Compose v2.24+** for `!override` / `!reset`. |
-
-**Default `docker compose up`** (base file only) still starts Jaeger, Grafana, Prometheus, Loki, Promtail, and the collector. **`docker-compose.dynatrace-poc.yml`** does **not** start those unless you add **`--profile commerce-local-observability`**.
-
-**Web UI:** open **`http://localhost:5173`** (Nginx → static React). API calls use **`http://localhost:8080`** from the browser (`web-ui/src/lib/api.ts`); wait until **api-gateway** is listening if lists/orders fail at first.
+| [`docker-compose.yml`](../docker-compose.yml) | The only maintained compose file. Starts the application stack and sends traces directly to Dynatrace. |
 
 ```bash
-docker compose -f docker-compose.dynatrace-poc.yml config   # optional: validate merge
-docker compose -f docker-compose.dynatrace-poc.yml up -d --build
+docker compose config   # optional: validate merge
+docker compose up -d --build
 ```
 
-### 6.1 JVM environment — **Dynatrace POC** (`dynatrace-poc-app-env` + `otlp-dynatrace-env`)
+### 6.1 JVM environment — **Dynatrace direct export** (`app-env`)
 
-**Spring + Micrometer token** (anchor **`dynatrace-poc-app-env`**):
+**Shared JVM environment** (anchor **`app-env`**):
 
 ```yaml
-x-dynatrace-poc-app-env: &dynatrace-poc-app-env
+x-app-env: &app-env
   SPRING_PROFILES_ACTIVE: "cloud,dynatrace"
   DT_ENVIRONMENT_ID: ${DT_ENVIRONMENT_ID}
   DYNATRACE_API_TOKEN: ${DYNATRACE_API_TOKEN}
-```
-
-**OTLP traces to Dynatrace** (anchor **`otlp-dynatrace-env`** — merged with the above on each JVM service):
-
-```yaml
-x-otlp-dynatrace-env: &otlp-dynatrace-env
   JAVA_TOOL_OPTIONS: "-javaagent:/opt/otel/opentelemetry-javaagent.jar"
   OTEL_EXPORTER_OTLP_ENDPOINT: "${DT_OTLP_ENDPOINT}"
   OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"
@@ -240,10 +226,10 @@ x-otlp-dynatrace-env: &otlp-dynatrace-env
   OTEL_LOGS_EXPORTER: "none"
   OTEL_TRACES_SAMPLER: "parentbased_always_on"
   OTEL_INSTRUMENTATION_SPRING_INTEGRATION_ENABLED: "true"
-  OTEL_RESOURCE_ATTRIBUTES: "service.namespace=commerce,deployment.environment=dynatrace-poc"
+  OTEL_RESOURCE_ATTRIBUTES: "service.namespace=commerce,deployment.environment=dynatrace-direct"
 ```
 
-Per service, add **`OTEL_SERVICE_NAME`** (e.g. **`api-gateway`**) and **`volumes: ./infra/otel/agent:/opt/otel:ro`**. See **`docker-compose.dynatrace-poc.overrides.yml`** for the full merge pattern (`<<: [*dynatrace-poc-app-env, *otlp-dynatrace-env]`).
+Per service, add **`OTEL_SERVICE_NAME`** (e.g. **`api-gateway`**) and **`volumes: ./infra/otel/agent:/opt/otel:ro`**.
 
 Process naming for **OTLP** in Dynatrace follows **`OTEL_SERVICE_NAME`**.
 
@@ -251,8 +237,7 @@ Process naming for **OTLP** in Dynatrace follows **`OTEL_SERVICE_NAME`**.
 
 | Goal | Command |
 |------|--------|
-| **Dynatrace POC** (OTLP traces + Micrometer profile) | `docker compose -f docker-compose.dynatrace-poc.yml up -d --build` |
-| **Default local stack** (OTel agent → collector → Jaeger, unchanged) | `docker compose up -d --build` |
+| **Dynatrace direct export** | `docker compose up -d --build` |
 
 ---
 
@@ -269,7 +254,7 @@ If **metrics** fail: **`metrics.ingest`** scope and **`DYNATRACE_API_TOKEN`** in
 
 | Area | Files |
 |------|--------|
-| Compose | **`docker-compose.dynatrace-poc.yml`** + **`docker-compose.dynatrace-poc.overrides.yml`** (**§6.0**) — JVM env **`<<: [*dynatrace-poc-app-env, *otlp-dynatrace-env]`**, **`OTEL_SERVICE_NAME`**, **`./infra/otel/agent`**, **no** `otel-collector` **depends_on** on **`api-gateway`** |
+| Compose | **`docker-compose.yml`** — direct Dynatrace export is configured in the shared JVM environment and used by all application services |
 | Secrets | `.env.example` — `DT_ENVIRONMENT_ID`, `DYNATRACE_API_TOKEN`, **`DT_OTLP_ENDPOINT`**, **`DT_OTLP_TRACE_TOKEN`** |
 | Maven | `services/*/pom.xml` — **`micrometer-registry-dynatrace`** where missing |
 | Spring | **`config-repo/application-dynatrace.yml`** — §5.2 |
@@ -296,4 +281,4 @@ If **metrics** fail: **`metrics.ingest`** scope and **`DYNATRACE_API_TOKEN`** in
 - `~/.cursor/plans/dynatrace_poc_validation_710f4207.plan.md`
 - `~/.cursor/plans/dynatrace_poc_md_guide_d8e49311.plan.md`
 
-Treat **`docs/DYNATRACE-POC.md`** as the implementation-oriented copy in this repository.
+Treat **`docs/DYNATRACE-POC.md`** as the implementation-oriented direct-export guide in this repository.

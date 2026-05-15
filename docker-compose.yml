@@ -7,9 +7,6 @@ volumes:
   pgdata: {}
   rabbitdata: {}
   redisdata: {}
-  prometheus_data: {}
-  grafana_data: {}
-  loki_data: {}
 
 # Wait for Eureka registration, not only Tomcat on 8080 (see config-repo application.yml readiness group).
 x-healthcheck-jvm-8080: &healthcheck-jvm-8080
@@ -19,17 +16,20 @@ x-healthcheck-jvm-8080: &healthcheck-jvm-8080
   retries: 15
   start_period: 90s
 
-x-app-env: &otel-env
+x-app-env: &app-env
+  SPRING_PROFILES_ACTIVE: "cloud,dynatrace"
+  DT_ENVIRONMENT_ID: ${DT_ENVIRONMENT_ID}
+  DYNATRACE_API_TOKEN: ${DYNATRACE_API_TOKEN}
   JAVA_TOOL_OPTIONS: "-javaagent:/opt/otel/opentelemetry-javaagent.jar"
-  OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector:4317"
-  OTEL_EXPORTER_OTLP_PROTOCOL: "grpc"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "${DT_OTLP_ENDPOINT}"
+  OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"
+  OTEL_EXPORTER_OTLP_HEADERS: "Authorization=Api-Token ${DT_OTLP_TRACE_TOKEN}"
   OTEL_TRACES_EXPORTER: "otlp"
-  OTEL_METRICS_EXPORTER: "otlp"
+  OTEL_METRICS_EXPORTER: "none"
   OTEL_LOGS_EXPORTER: "none"
-  OTEL_RESOURCE_ATTRIBUTES: "service.namespace=commerce,deployment.environment=local"
+  OTEL_RESOURCE_ATTRIBUTES: "service.namespace=commerce,deployment.environment=dynatrace-direct"
   OTEL_TRACES_SAMPLER: "parentbased_always_on"
   # Helps propagate trace context through Spring Integration / Cloud Stream message handlers into Micrometer spans.
-  # If error spans disappear from the trace you expect in Jaeger, try commenting this line out (fragmentation varies by agent version).
   OTEL_INSTRUMENTATION_SPRING_INTEGRATION_ENABLED: "true"
 
 services:
@@ -82,66 +82,6 @@ services:
       timeout: 3s
       retries: 8
 
-  # ---------- Observability stack (Path B) ----------
-
-  otel-collector:
-    image: otel/opentelemetry-collector-contrib:0.96.0
-    command: ["--config=/etc/otelcol/config.yaml"]
-    volumes:
-      - ./infra/observability/otel-collector-config.yaml:/etc/otelcol/config.yaml:ro
-    ports:
-      - "4317:4317"     # OTLP gRPC
-      - "4318:4318"     # OTLP HTTP
-      - "9464:9464"     # Prometheus exporter
-    networks: [commerce-net]
-
-  jaeger:
-    image: jaegertracing/all-in-one:1.55
-    environment:
-      COLLECTOR_OTLP_ENABLED: "true"
-    ports:
-      - "16686:16686"   # UI
-    networks: [commerce-net]
-
-  prometheus:
-    image: prom/prometheus:v2.51.0
-    volumes:
-      - ./infra/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
-    ports: ["9090:9090"]
-    networks: [commerce-net]
-
-  loki:
-    image: grafana/loki:2.9.5
-    command: ["-config.file=/etc/loki/local-config.yaml"]
-    volumes:
-      - ./infra/observability/loki-local-config.yaml:/etc/loki/local-config.yaml:ro
-      - loki_data:/loki
-    ports: ["3100:3100"]
-    networks: [commerce-net]
-
-  promtail:
-    image: grafana/promtail:3.1.0
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - ./infra/observability/promtail-config.yaml:/etc/promtail/config.yaml:ro
-    command: ["-config.file=/etc/promtail/config.yaml"]
-    depends_on: [loki]
-    networks: [commerce-net]
-
-  grafana:
-    image: grafana/grafana:10.4.0
-    environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
-    volumes:
-      - ./infra/observability/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./infra/observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
-      - grafana_data:/var/lib/grafana
-    ports: ["3000:3000"]
-    depends_on: [prometheus, loki, jaeger]
-    networks: [commerce-net]
-
   # ---------- Platform services ----------
 
   config-server:
@@ -168,14 +108,13 @@ services:
     build: ./services/api-gateway
     ports: ["8080:8080"]
     environment:
-      <<: *otel-env
+      <<: *app-env
       OTEL_SERVICE_NAME: "api-gateway"
     volumes:
       - ./infra/otel/agent:/opt/otel:ro
     depends_on:
       config-server:      { condition: service_healthy }
       discovery-server:   { condition: service_started }
-      otel-collector:     { condition: service_started }
       order-service:      { condition: service_healthy }
       inventory-service: { condition: service_healthy }
       payment-service:    { condition: service_healthy }
@@ -184,7 +123,7 @@ services:
   order-service:
     build: ./services/order-service
     environment:
-      <<: *otel-env
+      <<: *app-env
       OTEL_SERVICE_NAME: "order-service"
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -200,13 +139,12 @@ services:
       redis:            { condition: service_healthy }
       config-server:    { condition: service_healthy }
       discovery-server: { condition: service_started }
-      otel-collector:   { condition: service_started }
     networks: [commerce-net]
 
   inventory-service:
     build: ./services/inventory-service
     environment:
-      <<: *otel-env
+      <<: *app-env
       OTEL_SERVICE_NAME: "inventory-service"
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -221,13 +159,12 @@ services:
       rabbitmq:         { condition: service_healthy }
       config-server:    { condition: service_healthy }
       discovery-server: { condition: service_started }
-      otel-collector:   { condition: service_started }
     networks: [commerce-net]
 
   payment-service:
     build: ./services/payment-service
     environment:
-      <<: *otel-env
+      <<: *app-env
       OTEL_SERVICE_NAME: "payment-service"
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -242,13 +179,12 @@ services:
       rabbitmq:         { condition: service_healthy }
       config-server:    { condition: service_healthy }
       discovery-server: { condition: service_started }
-      otel-collector:   { condition: service_started }
     networks: [commerce-net]
 
   notification-service:
     build: ./services/notification-service
     environment:
-      <<: *otel-env
+      <<: *app-env
       OTEL_SERVICE_NAME: "notification-service"
       RABBITMQ_USER:     "${RABBITMQ_USER}"
       RABBITMQ_PASSWORD: "${RABBITMQ_PASSWORD}"
@@ -258,7 +194,6 @@ services:
       rabbitmq:         { condition: service_healthy }
       config-server:    { condition: service_healthy }
       discovery-server: { condition: service_started }
-      otel-collector:   { condition: service_started }
     networks: [commerce-net]
 
   web-ui:
